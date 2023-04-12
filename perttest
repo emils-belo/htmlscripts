@@ -1,0 +1,233 @@
+<html>
+<head>
+  <script src="https://cdn.anychart.com/releases/v8/js/anychart-base.min.js"></script>
+  <script src="https://cdn.anychart.com/releases/v8/js/anychart-ui.min.js"></script>
+  <script src="https://cdn.anychart.com/releases/v8/js/anychart-exports.min.js"></script>
+  <script src="https://cdn.anychart.com/releases/v8/js/anychart-pert.min.js"></script>
+  <link href="https://cdn.anychart.com/releases/v8/css/anychart-ui.min.css" type="text/css" rel="stylesheet">
+  <link href="https://cdn.anychart.com/releases/v8/fonts/css/anychart-font.min.css" type="text/css" rel="stylesheet">
+  <style type="text/css">
+
+    html,
+    body,
+    #container {
+      width: 100%;
+      height: 100%;
+      margin: 0;
+      padding: 0;
+    }
+  
+</style>
+</head>
+<body>
+  
+  <div id="container"></div>
+  
+
+  <script>
+    
+     async function fetchData() {
+  try {
+    const response = await fetch('https://clience.app/version-test/api/1.1/obj/Milestone');
+    if (!response.ok) {
+      throw new Error(`HTTP error! Status: ${response.status}`);
+    }
+    const rawData = await response.json();
+    const processedData = processFetchedData(rawData.response.results);
+    console.log(processedData);
+    return processedData;
+  } catch (error) {
+    console.error('Error fetching data:', error);
+    throw error;
+  }
+}
+
+anychart.onDocumentReady(async function () {
+  try {
+    // data
+    const data = await fetchData();
+
+    // set filling method for tree
+    const treeData = anychart.data.tree(data, 'as-table');
+
+    // create PERT chart
+    const chart = anychart.pert();
+    // set spacing between milestones
+    chart
+      .data(data)
+      .horizontalSpacing('18.7%')
+      // set padding for chart
+      .padding([25, 50, 0, 50]);
+
+    // get duration project
+    const duration = chart.getStat('pertChartProjectDuration');
+
+    // set title text
+    chart
+      .title()
+      .enabled(true)
+      .useHtml(true)
+      .padding([0, 0, 35, 0])
+      .text(
+        'MVP Development Process with PERT Chart' +
+        '<br>Project duration: ' +
+        duration +
+        ' days'
+      );
+    
+// Enable panning and zooming with mouse interactions
+    //chart.interactivity().zoomOnMouseWheel(true).panOnMouseWheel(false).scrollOnMouseWheel(false);
+
+        // Set the chart bounds to fit within the container
+    //chart.bounds(0, 0, '100%', '100%');
+
+        // Enable scrollbars to visualize the panning area
+    //chart.xScroller(true).yScroller(true);
+
+        // Set the minimum and maximum zoom levels to limit the zooming range
+    //chart.minZoomLevel(0.5).maxZoomLevel(10);
+
+
+    // set settings for tasks
+    const tasks = chart.tasks();
+    // format upper label task
+    tasks.upperLabels().format(function () {
+      return this.item.get('fullName');
+    });
+
+    // format lower label task
+    tasks.lowerLabels().format('{%duration} days');
+
+    // create tasks tooltip
+    const taskTooltip = tasks.tooltip();
+    // tooltip settings
+    taskTooltip.separator(true).titleFormat(function () {
+      // return fullName from data
+      return this.item.get('fullName');
+    });
+    taskTooltip.title().useHtml(true);
+
+    // set settings for milestones
+    const milestones = chart.milestones();
+    // set milestones color
+    milestones
+      .color('#2C81D5')
+      // set milestones item size
+      .size('6.5%');
+    milestones.hovered().fill(function () {
+      return anychart.color.lighten(this.sourceColor, 0.25);
+    });
+    milestones.tooltip().format(defuaultMilesoneTooltipTextFormatter);
+
+    // set settings for critical milestones
+    const critMilestones = chart.criticalPath().milestones();
+    // format label
+    critMilestones.labels().format(function () {
+      if (this.creator) {
+        return this.creator.get('name');
+      }
+      return this.isStart ? 'Start' : 'Finish';
+    });
+    // set color
+    critMilestones
+      .color('#E24B26')
+      // fill color for critMilestones item
+      .fill(function () {
+        if (this.creator) {
+          return this.sourceColor;
+        }
+        return this.isStart ? '#60727B' : '#60727B';
+      });
+
+    // hover fill/stroke color for critMilestones item
+    critMilestones
+      .hovered()
+      .fill(function () {
+        if (this.creator) {
+          return anychart.color.lighten(this.sourceColor, 0.25);
+        }
+        return this.isStart ? '#60727b' : '#60727b';
+      })
+      .stroke(function () {
+        return this.creator ? '1.5 #a94e3d' : null;
+      });
+
+    // set container id for the chart
+    chart.container('container');
+    // initiate chart drawing
+    chart.draw();
+  } catch (error) {
+    console.error('Error fetching and processing data:', error);
+  }
+});
+
+    function defuaultMilesoneTooltipTextFormatter() {
+      var result = '';
+      var i = 0;
+      if (this.successors && this.successors.length) {
+        result += 'Successors:';
+        for (i = 0; i < this.successors.length; i++) {
+          result += '\n - ' + this.successors[i].get('fullName');
+        }
+        if (this.predecessors && this.predecessors.length) result += '\n\n';
+      }
+      if (this.predecessors && this.predecessors.length) {
+        result += 'Predecessors:';
+        for (i = 0; i < this.predecessors.length; i++) {
+          result += '\n - ' + this.predecessors[i].get('fullName');
+        }
+      }
+      return result;
+    }
+
+    function getData() {
+      const apiUrl = 'https://clience.app/version-test/api/1.1/obj/Milestone';
+
+      return fetch(apiUrl, {
+        method: 'GET',
+        headers: {
+          'Content-Type': 'application/json',
+        }
+      })
+  .then(response => response.json())
+  .then(data => {
+    // Check if results property exists and it's an array
+    if (data.response && Array.isArray(data.response.results)) {
+      // Process the milestones data to match the desired format
+      return data.response.results.map(milestone => {
+        const dependsOn = milestone.dependson_list_text || [];
+        return {
+          id: milestone.id_text,
+          duration: milestone.duration_number,
+          name: milestone.name_text,
+          dependsOn: dependsOn,
+          fullName: milestone.fullname_text
+        };
+      });
+    } else {
+      console.error('Unexpected JSON structure:', data);
+      return [];
+    }
+  })
+  .catch(error => {
+    console.error('Error fetching milestones:', error);
+  });;
+    }
+    
+    function processFetchedData(data) {
+  return data.map(item => ({
+    id: item.id_text,
+    duration: item.duration_number,
+    name: item.name_text,
+    fullName: item.fullname_text,
+    dependsOn: item.dependson_list_text,
+  }));
+}
+    
+   
+
+
+  
+</script>
+</body>
+</html>
